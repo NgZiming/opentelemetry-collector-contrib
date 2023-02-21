@@ -1,0 +1,15 @@
+promqlprocessor:
+promqlprocessor/2:
+  tsdb:
+    storage_dir: /data
+    max_samples: 999999
+    query_timeout: 30ms
+    metrics:
+      - a
+      - b
+      - kube_.*
+  queries:
+    - query_string: 'a{pod: "otel"}'
+      output_metric_name: pod_a
+    - query_string: 'b{namespace: "otel"}'
+      output_metric_name: namespace_b

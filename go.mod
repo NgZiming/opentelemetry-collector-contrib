@@ -848,6 +848,8 @@ replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/metr
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/probabilisticsamplerprocessor => ./processor/probabilisticsamplerprocessor/
 
+replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/promqlprocessor => ./processor/promqlprocessor/
+
 replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourcedetectionprocessor => ./processor/resourcedetectionprocessor/
 
 replace github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor => ./processor/resourceprocessor/
