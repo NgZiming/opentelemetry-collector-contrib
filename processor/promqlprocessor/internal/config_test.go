@@ -46,23 +46,27 @@ func TestLoadConfig(t *testing.T) {
 			id: component.NewIDWithName(internal.TypeStr, "2"),
 			expected: &internal.Config{
 				TSDB: internal.TSDBConfig{
-					StorageDir:   "/data",
-					MaxSamples:   999999,
-					QueryTimeout: "30ms",
+					StorageDir:               "/data",
+					RetentionDurationSeconds: 0,
+					MaxSamples:               999999,
+					QueryTimeout:             "30ms",
 					Metrics: []string{
 						"a",
 						"b",
 						"kube_.*",
 					},
 				},
+				LoadMetrics: internal.LoadConfig{
+					MetricNames: make([]string, 0),
+				},
 				Queries: []internal.QueryConfig{
 					{
-						QueryString:      `a{pod: "otel"}`,
-						OutputMetricName: "pod_a",
+						QueryString: `a{pod: "otel"}`,
+						MetricName:  "pod_a",
 					},
 					{
-						QueryString:      `b{namespace: "otel"}`,
-						OutputMetricName: "namespace_b",
+						QueryString: `b{namespace: "otel"}`,
+						MetricName:  "namespace_b",
 					},
 				},
 			},

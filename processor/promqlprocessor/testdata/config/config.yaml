@@ -10,6 +10,6 @@ promqlprocessor/2:
       - kube_.*
   queries:
     - query_string: 'a{pod: "otel"}'
-      output_metric_name: pod_a
+      metric_name: pod_a
     - query_string: 'b{namespace: "otel"}'
-      output_metric_name: namespace_b
+      metric_name: namespace_b

@@ -31,8 +31,9 @@ import (
 type Converter struct{}
 
 type PrometheusMetrics struct {
-	Labels labels.Labels
-	Value  float64
+	Labels      labels.Labels
+	Value       float64
+	TimestampMs int64
 }
 
 func (c Converter) ExtractMetrics(metric pmetric.Metric) ([]PrometheusMetrics, error) {
@@ -55,18 +56,7 @@ func (c Converter) convertSum(metric pmetric.Metric) ([]PrometheusMetrics, error
 }
 
 func (c Converter) convertNumberSlice(name string, dataPoints pmetric.NumberDataPointSlice) ([]PrometheusMetrics, error) {
-	l := make([]labels.Label, dataPoints.At(0).Attributes().Len()+1)
-	l = append(l, labels.Label{Name: model.MetricNameLabel, Value: name})
-
-	dataPoints.At(0).Attributes().Range(func(k string, v pcommon.Value) bool {
-		l = append(l, labels.Label{
-			Name:  prometheustranslator.NormalizeLabel(k),
-			Value: v.AsString(),
-		})
-		return true
-	})
-
-	promMetrics := make([]PrometheusMetrics, dataPoints.Len())
+	promMetrics := make([]PrometheusMetrics, 0, dataPoints.Len())
 	for idx := 0; idx < dataPoints.Len(); idx++ {
 		var v float64
 
@@ -77,9 +67,21 @@ func (c Converter) convertNumberSlice(name string, dataPoints pmetric.NumberData
 			v = dataPoints.At(idx).DoubleValue()
 		}
 
+		l := make([]labels.Label, 0, dataPoints.At(0).Attributes().Len()+1)
+		l = append(l, labels.Label{Name: model.MetricNameLabel, Value: name})
+
+		dataPoints.At(idx).Attributes().Range(func(k string, v pcommon.Value) bool {
+			l = append(l, labels.Label{
+				Name:  prometheustranslator.NormalizeLabel(k),
+				Value: v.AsString(),
+			})
+			return true
+		})
+
 		promMetrics = append(promMetrics, PrometheusMetrics{
-			Labels: l,
-			Value:  v,
+			Labels:      l,
+			Value:       v,
+			TimestampMs: dataPoints.At(idx).Timestamp().AsTime().UnixMilli(),
 		})
 	}
 

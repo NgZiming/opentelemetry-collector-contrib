@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.opentelemetry.io/collector/processor"
 	"go.uber.org/multierr"
@@ -43,11 +44,15 @@ type PromqlProcessor struct {
 	timeout    string
 
 	c internal.Converter
+
+	backfilling bool
 }
 
 func newPromqlProcessor(config *internal.Config, set *processor.CreateSettings) (*PromqlProcessor, error) {
 	processorID := set.ID.String()
 	dir := config.TSDB.StorageDir + "/" + processorID
+
+	config.TSDB.Metrics = append(config.TSDB.Metrics, config.LoadMetrics.MetricNames...)
 
 	var exp string
 	for idx, val := range config.TSDB.Metrics {
@@ -63,6 +68,10 @@ func newPromqlProcessor(config *internal.Config, set *processor.CreateSettings) 
 		return nil, err
 	}
 
+	if config.TSDB.Timeout != "" {
+		config.TSDB.QueryTimeout = config.TSDB.Timeout
+	}
+
 	pp := PromqlProcessor{
 		id:     processorID,
 		logger: set.Logger,
@@ -76,6 +85,8 @@ func newPromqlProcessor(config *internal.Config, set *processor.CreateSettings) 
 		timeout:    config.TSDB.QueryTimeout,
 
 		c: internal.Converter{},
+
+		backfilling: config.Backfilling.SetSliceTimestampToLastestMetric,
 	}
 
 	return &pp, nil
@@ -128,7 +139,9 @@ func (pp *PromqlProcessor) processSlice(ctx context.Context, rm pmetric.Resource
 	}
 
 	app := storage.Appender(ctx)
+
 	timestampMilliseconds := t.UnixNano() / int64(time.Millisecond/time.Nanosecond)
+	var setTimestampMilliseconds int64
 
 	for i := 0; i < rm.ScopeMetrics().Len(); i++ {
 		sm := rm.ScopeMetrics().At(i)
@@ -142,6 +155,10 @@ func (pp *PromqlProcessor) processSlice(ctx context.Context, rm pmetric.Resource
 				}
 
 				for _, pm := range promMetrics {
+					if pp.backfilling && pm.TimestampMs > setTimestampMilliseconds {
+						setTimestampMilliseconds = pm.TimestampMs
+					}
+
 					_, err = app.Append(0, pm.Labels, timestampMilliseconds, pm.Value)
 
 					if err != nil {
@@ -179,9 +196,19 @@ func (pp *PromqlProcessor) processSlice(ctx context.Context, rm pmetric.Resource
 		}
 
 		rtnMetric := rm.ScopeMetrics().AppendEmpty()
-		err = pp.c.IntoResourceMetric(pr.Value, query.OutputMetricName, rtnMetric)
+		err = pp.c.IntoResourceMetric(pr.Value, query.MetricName, rtnMetric)
 		if err != nil {
 			return err
+		}
+
+		if pp.backfilling {
+			for i := 0; i < rtnMetric.Metrics().Len(); i++ {
+				dps := rtnMetric.Metrics().At(i).Gauge().DataPoints()
+				for j := 0; j < dps.Len(); j++ {
+					dp := dps.At(j)
+					dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(setTimestampMilliseconds)))
+				}
+			}
 		}
 	}
 
